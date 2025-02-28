@@ -1,67 +1,75 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
-import streamlit as st
+import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-import openpyxl
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Load the dataset
-github_url = "https://raw.githubusercontent.com/your-username/your-repo/main/AmesHousing.xlsx"
-df = pd.read_excel(github_url, engine='openpyxl')
+# Load Dataset
+def load_data():
+    file_path = "/mnt/data/Ameshousing.xlsx"
+    try:
+        df = pd.read_excel(file_path, engine='openpyxl')
+        return df
+    except Exception as e:
+        st.error(f"Error loading dataset: {e}")
+        return None
 
-# Data preprocessing (handle missing values, select features, encode categorical data)
-df = df.select_dtypes(include=[np.number]).dropna()
-if 'SalePrice' not in df.columns:
-    st.error("Error: 'SalePrice' column is missing from the dataset.")
-    st.stop()
+def preprocess_data(df):
+    if df is None:
+        return None, None, None
+    df = df.select_dtypes(include=[np.number])  # Keep only numeric columns
+    df = df.fillna(df.median())  # Handle missing values
+    if 'SalePrice' not in df.columns:
+        st.error("Error: 'SalePrice' column missing from dataset.")
+        return None, None, None
+    X = df.drop(columns=['SalePrice'])
+    y = df['SalePrice']
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    return X_scaled, y, scaler
 
-X = df.drop(columns=['SalePrice'])  # Features
-y = df['SalePrice']  # Target variable
+# Train Model
+def train_model(X, y):
+    if X is None or y is None:
+        return None, None, None
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    return model, X_test, y_test
 
-# Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Scale the data
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-
-# Train a regression model
-model = LinearRegression()
-model.fit(X_train_scaled, y_train)
-
-# Evaluate the model
-y_pred = model.predict(X_test_scaled)
-mae = mean_absolute_error(y_test, y_pred)
-mse = mean_squared_error(y_test, y_pred)
-rmse = np.sqrt(mse)
+# Load & Process Data
+df = load_data()
+X, y, scaler = preprocess_data(df)
+model, X_test, y_test = train_model(X, y)
+if model:
+    joblib.dump(model, "model.pkl")
+    joblib.dump(scaler, "scaler.pkl")
 
 # Streamlit Web App
-st.title("Housing Price Prediction")
-st.write("Enter house features to predict the sale price.")
+st.title("Ames Housing Price Prediction")
+st.write("Enter property details below to predict the house price.")
 
-input_features = {}
-for feature in X.columns:
-    input_features[feature] = st.number_input(feature, float(X[feature].min()), float(X[feature].max()), float(X[feature].mean()))
+if df is not None and model is not None:
+    # Create input fields for user
+    inputs = {}
+    for feature in df.drop(columns=['SalePrice'], errors='ignore').select_dtypes(include=[np.number]).columns:
+        inputs[feature] = st.number_input(feature, float(df[feature].min()), float(df[feature].max()), float(df[feature].mean()))
 
-if st.button("Predict Price"):
-    input_df = pd.DataFrame([input_features])
-    input_scaled = scaler.transform(input_df)
-    predicted_price = model.predict(input_scaled)
-    st.write(f"Predicted Sale Price: ${predicted_price[0]:,.2f}")
+    # Predict Price
+    if st.button("Predict Price"):
+        input_data = np.array([inputs[feature] for feature in inputs]).reshape(1, -1)
+        input_data = scaler.transform(input_data)
+        prediction = model.predict(input_data)[0]
+        st.success(f"Estimated House Price: ${prediction:,.2f}")
 
-# Save necessary files for deployment
-requirements = """pandas
-numpy
-streamlit
-scikit-learn
-openpyxl"""
-with open("requirements.txt", "w") as f:
-    f.write(requirements)
-
-# Instructions:
-# 1. Upload 'AmesHousing.xlsx' and this script to your GitHub repository.
-# 2. Deploy the app using Streamlit by running 'streamlit run script_name.py'.
-# 3. Update the 'github_url' variable with your actual GitHub raw file link.
+    # Model Evaluation
+    st.subheader("Model Performance")
+    y_pred = model.predict(X_test)
+    st.write(f"Mean Absolute Error: {mean_absolute_error(y_test, y_pred):,.2f}")
+    st.write(f"Mean Squared Error: {mean_squared_error(y_test, y_pred):,.2f}")
+    st.write(f"R² Score: {r2_score(y_test, y_pred):.2f}")
+else:
+    st.error("Model training failed. Please check dataset and try again.")
