@@ -1,83 +1,62 @@
-# This app is for educaiton demonstration purpose that teaches students how to develop and deploy an interactive web based engineering application app.
-# Data source: uc irvine machine learning repository 
-
-# Load libraries
-import streamlit as st
 import pandas as pd
+import numpy as np
+import streamlit as st
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
-import openpyxl
-import xlrd
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-# Load the data
-url = "https://archive.ics.uci.edu/ml/machine-learning-databases/concrete/compressive/Concrete_Data.xls"
-data = pd.read_excel(url, sheet_name='Sheet1')
+# Load the dataset
+github_url = "https://raw.githubusercontent.com/your-username/your-repo/main/AmesHousing.xlsx"
+df = pd.read_excel(github_url)
 
-# Clean column names
-data.columns = [col.split('(')[0].strip() for col in data.columns]
-data.rename(columns={'Concrete compressive strength': 'Strength'}, inplace=True)
-
-# Assuming no missing values, split the data into features and target
-X = data.drop(columns=['Strength'])
-y = data['Strength']
-
-# Train a Multiple Regression Model 
+# Data preprocessing (handle missing values, select features, encode categorical data)
+df = df.select_dtypes(include=[np.number]).dropna()
+X = df.drop(columns=['SalePrice'])  # Features
+y = df['SalePrice']  # Target variable
 
 # Split the data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Train the model
-model = LinearRegression()
-model.fit(X_train, y_train)
+# Scale the data
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
-# Make predictions
-y_pred = model.predict(X_test)
+# Train a regression model
+model = LinearRegression()
+model.fit(X_train_scaled, y_train)
 
 # Evaluate the model
+y_pred = model.predict(X_test_scaled)
+mae = mean_absolute_error(y_test, y_pred)
 mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
 
-# Create the streamlit web-based app
+# Streamlit Web App
+st.title("Housing Price Prediction")
+st.write("Enter house features to predict the sale price.")
 
-# Title of the app
-st.title('Concrete Compressive Strength Prediction')
+input_features = {}
+for feature in X.columns:
+    input_features[feature] = st.number_input(feature, float(X[feature].min()), float(X[feature].max()), float(X[feature].mean()))
 
-# Sidebar for user inputs
-st.sidebar.header('Input Parameters')
+if st.button("Predict Price"):
+    input_df = pd.DataFrame([input_features])
+    input_scaled = scaler.transform(input_df)
+    predicted_price = model.predict(input_scaled)
+    st.write(f"Predicted Sale Price: ${predicted_price[0]:,.2f}")
 
-def user_input_features():
-    Cement = st.sidebar.slider('Cement', 0, 540, 100)
-    Blast_Furnace_Slag = st.sidebar.slider('Blast Furnace Slag', 0, 359, 0)
-    Fly_Ash = st.sidebar.slider('Fly Ash ', 0, 200, 0)
-    Water = st.sidebar.slider('Water', 0, 228, 100)
-    Superplasticizer = st.sidebar.slider('Superplasticizer', 0, 32, 0)
-    Coarse_Aggregate = st.sidebar.slider('Coarse Aggregate', 800, 1145, 1000)
-    Fine_Aggregate = st.sidebar.slider('Fine Aggregate', 594, 992, 800)
-    Age = st.sidebar.slider('Age', 1, 365, 28)
-    
-    data = {
-        'Cement': Cement,
-        'Blast Furnace Slag': Blast_Furnace_Slag,
-        'Fly Ash': Fly_Ash,
-        'Water': Water,
-        'Superplasticizer': Superplasticizer,
-        'Coarse Aggregate': Coarse_Aggregate,
-        'Fine Aggregate': Fine_Aggregate,
-        'Age': Age
-    }
-    
-    features = pd.DataFrame(data, index=[0])
-    return features
+# Save necessary files for deployment
+requirements = """pandas
+numpy
+streamlit
+scikit-learn
+openpyxl"""
+with open("requirements.txt", "w") as f:
+    f.write(requirements)
 
-input_df = user_input_features()
-
-# Display user inputs
-st.subheader('User Input Parameters')
-st.write(input_df)
-
-# Predict the compressive strength
-prediction = model.predict(input_df)
-
-# Display the prediction
-st.subheader('Predicted Concrete Compressive Strength (MPa)')
-st.write(prediction[0])
+# Instructions:
+# 1. Upload 'AmesHousing.xlsx' and this script to your GitHub repository.
+# 2. Deploy the app using Streamlit by running 'streamlit run script_name.py'.
+# 3. Update the 'github_url' variable with your actual GitHub raw file link.
