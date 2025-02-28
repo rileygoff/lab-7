@@ -5,13 +5,18 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+import openpyxl
 
 # Load the dataset
 github_url = "https://raw.githubusercontent.com/your-username/your-repo/main/AmesHousing.xlsx"
-df = pd.read_excel(github_url)
+df = pd.read_excel(github_url, engine='openpyxl')
 
 # Data preprocessing (handle missing values, select features, encode categorical data)
 df = df.select_dtypes(include=[np.number]).dropna()
+if 'SalePrice' not in df.columns:
+    st.error("Error: 'SalePrice' column is missing from the dataset.")
+    st.stop()
+
 X = df.drop(columns=['SalePrice'])  # Features
 y = df['SalePrice']  # Target variable
 
