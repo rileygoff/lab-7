@@ -9,9 +9,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Load Dataset
 def load_data():
-    file_path = "/mnt/data/Ameshousing.xlsx"
+    file_path = "/mnt/data/Ameshousing.csv"
     try:
-        df = pd.read_excel(file_path, engine='openpyxl')
+        df = pd.read_csv(file_path)
         return df
     except Exception as e:
         st.error(f"Error loading dataset: {e}")
